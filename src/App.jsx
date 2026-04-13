@@ -1,5 +1,6 @@
 
 import { useState, useEffect, useRef } from "react";
+import ClassVillageMVP from "./ClassVillageMVP";
 import { initializeApp } from "firebase/app";
 import {
   getAuth,
@@ -1539,11 +1540,29 @@ export default function App() {
           </div>
         </div>
         {toast && <div style={css.toast(toast.type)}>{toast.msg}</div>}
-        <div style={{ ...css.wrap, marginTop: -24 }}>
+        <div
+          style={
+            studentTab === "village"
+              ? {
+                  maxWidth: 1280,
+                  margin: "-24px auto 0",
+                  padding: "16px 16px 16px",
+                }
+              : { ...css.wrap, marginTop: -24 }
+          }
+        >
 
-          <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              marginBottom: 14,
+              flexWrap: studentTab === "village" ? "nowrap" : "wrap",
+            }}
+          >
             {[
               ["shop", "🛒 Shop"],
+              ["village", "Town"],
               ["ranking", "🏆 Ranking"],
               ["purchases", "🛍 Purchases"],
               ["history", "📋 History"],
@@ -1744,6 +1763,18 @@ export default function App() {
                 </div>
               )}
             </div>
+          )}
+
+          {studentTab === "village" && (
+            <ClassVillageMVP
+              cls={cls}
+              me={me}
+              classRanked={classRanked}
+              onOpenTab={setStudentTab}
+              showToast={showToast}
+              css={css}
+              C={C}
+            />
           )}
 
           {studentTab === "ranking" && (() => {
