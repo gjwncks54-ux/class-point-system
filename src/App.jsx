@@ -966,7 +966,6 @@ export default function App() {
       console.log("ADMIN UID:", cred.user?.uid || null);
       sessionStorage.setItem("adminEmail", email);
       setAdminPassword("");
-      setPwInput("");
       setView("admin");
       showToast("Teacher login complete!");
     } catch (e) {
@@ -984,7 +983,6 @@ export default function App() {
     }
     setAdminPassword("");
     setAdminLoginError("");
-    setPwInput("");
     setView("home");
   };
 
