@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.uid == "PASTE_TEACHER_UID_HERE";
+    }
+
+    function validPurchaseRequest() {
+      return request.resource.data.keys().hasOnly([
+        'type', 'cid', 'sid', 'studentName', 'className',
+        'item', 'price', 'date', 'createdAtMs', 'isPublic'
+      ]) &&
+      request.resource.data.type == 'purchase' &&
+      request.resource.data.price is int &&
+      request.resource.data.price >= 0;
+    }
+
+    function validPinRequest() {
+      return request.resource.data.keys().hasOnly([
+        'type', 'cid', 'sid', 'studentName', 'className',
+        'newPin', 'date', 'createdAtMs'
+      ]) &&
+      request.resource.data.type == 'pinChange' &&
+      request.resource.data.newPin is string &&
+      request.resource.data.newPin.size() == 4;
+    }
+
+    match /app/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /requests/{requestId} {
+      allow create: if validPurchaseRequest() || validPinRequest();
+      allow read, update, delete: if isAdmin();
+    }
+  }
+}
