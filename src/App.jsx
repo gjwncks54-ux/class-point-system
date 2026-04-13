@@ -38,20 +38,7 @@ const BACKUP_DOC = doc(db, "app", "backup");
 const REQUESTS_COL = collection(db, "requests");
 const REQUEST_DOC = (id) => doc(db, "requests", id);
 
-const ADMIN_PASSWORD_HASH =
-  "ace3f7f0672635a4b3be1a036c2506d899ade343d6b799a22598c0a088d70000";
 
-const checkPassword = async (input) => {
-  const buf = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(input)
-  );
-  return (
-    Array.from(new Uint8Array(buf))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("") === ADMIN_PASSWORD_HASH
-  );
-};
 
 const makeClassFromNames = (id, name, color, emoji, names) => ({
   id,
@@ -288,6 +275,113 @@ if (!document.querySelector("style[data-cls]")) {
   document.head.appendChild(s);
 }
 
+const C = {
+  bg: "#FFF8F0",
+  card: "#FFFFFF",
+  primary: "#FF5722",
+  secondary: "#2979FF",
+  accent: "#FFC107",
+  teal: "#00BCD4",
+  success: "#43A047",
+  danger: "#E53935",
+  muted: "#90A4AE",
+  dark: "#1A237E",
+  mid: "#546E7A",
+  light: "#E3F2FD",
+  cream: "#FFF3E0",
+};
+
+const FF = {
+  display: "'Chewy', 'Noto Sans KR', cursive",
+  body: "'Nunito', 'Noto Sans KR', sans-serif",
+};
+
+const css = {
+  app: {
+    fontFamily: FF.body,
+    minHeight: "100vh",
+    background: C.bg,
+    color: C.dark,
+  },
+  header: (bg) => ({
+    background: bg || C.primary,
+    padding: "14px 20px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+  }),
+  htitle: { color: "#fff", fontSize: 19, fontWeight: 900, margin: 0, fontFamily: FF.display, letterSpacing: 0.5 },
+  wrap: { maxWidth: 640, margin: "0 auto", padding: "24px 16px" },
+  card: (extra) => ({
+    background: C.card,
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 12,
+    boxShadow: "0 2px 12px rgba(26,35,126,0.08)",
+    ...extra,
+  }),
+  btn: (bg, color = "#fff", extra) => ({
+    background: bg,
+    color,
+    border: "none",
+    borderRadius: 50,
+    padding: "11px 22px",
+    fontWeight: 800,
+    fontSize: 14,
+    cursor: "pointer",
+    fontFamily: FF.body,
+    ...extra,
+  }),
+  pill: (bg, color = "#fff") => ({
+    background: bg,
+    color,
+    borderRadius: 50,
+    padding: "4px 13px",
+    fontSize: 12,
+    fontWeight: 800,
+    display: "inline-block",
+  }),
+  tab: (active, color) => ({
+    background: active ? color || C.primary : C.card,
+    color: active ? "#fff" : C.mid,
+    border: active ? "none" : `2px solid ${C.light}`,
+    borderRadius: 50,
+    padding: "9px 17px",
+    fontWeight: 800,
+    fontSize: 13,
+    cursor: "pointer",
+    fontFamily: FF.body,
+    transition: "all 0.15s",
+  }),
+  input: {
+    border: "2.5px solid #CFD8DC",
+    borderRadius: 14,
+    padding: "12px 16px",
+    fontSize: 15,
+    fontFamily: FF.body,
+    outline: "none",
+    background: "#FFFFFF",
+    width: "100%",
+    boxSizing: "border-box",
+    color: C.dark,
+  },
+  toast: (type) => ({
+    position: "fixed",
+    top: 20,
+    left: "50%",
+    transform: "translateX(-50%)",
+    background: type === "err" ? C.danger : C.success,
+    color: "#fff",
+    padding: "13px 28px",
+    borderRadius: 50,
+    fontWeight: 800,
+    zIndex: 9999,
+    boxShadow: "0 6px 24px rgba(0,0,0,0.18)",
+    fontSize: 15,
+    whiteSpace: "nowrap",
+  }),
+};
+
 export default function App() {
   const [data, setData] = useState(null);
   const [requests, setRequests] = useState([]);
@@ -304,8 +398,6 @@ export default function App() {
   );
   const [adminTab, setAdminTab] = useState("points");
   const [studentTab, setStudentTab] = useState("shop");
-  const [pwInput, setPwInput] = useState("");
-  const [pwError, setPwError] = useState(false);
   const [adminEmail, setAdminEmail] = useState(() => sessionStorage.getItem("adminEmail") || "");
   const [adminPassword, setAdminPassword] = useState("");
   const [adminLoginError, setAdminLoginError] = useState("");
@@ -896,120 +988,14 @@ export default function App() {
     setView("home");
   };
 
-  const C = {
-    bg: "#FFF8F0",
-    card: "#FFFFFF",
-    primary: "#FF5722",
-    secondary: "#2979FF",
-    accent: "#FFC107",
-    teal: "#00BCD4",
-    success: "#43A047",
-    danger: "#E53935",
-    muted: "#90A4AE",
-    dark: "#1A237E",
-    mid: "#546E7A",
-    light: "#E3F2FD",
-    cream: "#FFF3E0",
-  };
-
-  const FF = {
-    display: "'Chewy', 'Noto Sans KR', cursive",
-    body: "'Nunito', 'Noto Sans KR', sans-serif",
-  };
-
-  const css = {
-    app: {
-      fontFamily: FF.body,
-      minHeight: "100vh",
-      background: C.bg,
-      color: C.dark,
-    },
-    header: (bg) => ({
-      background: bg || C.primary,
-      padding: "14px 20px",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-    }),
-    htitle: { color: "#fff", fontSize: 19, fontWeight: 900, margin: 0, fontFamily: FF.display, letterSpacing: 0.5 },
-    wrap: { maxWidth: 640, margin: "0 auto", padding: "24px 16px" },
-    card: (extra) => ({
-      background: C.card,
-      borderRadius: 20,
-      padding: 20,
-      marginBottom: 12,
-      boxShadow: "0 2px 12px rgba(26,35,126,0.08)",
-      ...extra,
-    }),
-    btn: (bg, color = "#fff", extra) => ({
-      background: bg,
-      color,
-      border: "none",
-      borderRadius: 50,
-      padding: "11px 22px",
-      fontWeight: 800,
-      fontSize: 14,
-      cursor: "pointer",
-      fontFamily: FF.body,
-      ...extra,
-    }),
-    pill: (bg, color = "#fff") => ({
-      background: bg,
-      color,
-      borderRadius: 50,
-      padding: "4px 13px",
-      fontSize: 12,
-      fontWeight: 800,
-      display: "inline-block",
-    }),
-    tab: (active, color) => ({
-      background: active ? color || C.primary : C.card,
-      color: active ? "#fff" : C.mid,
-      border: active ? "none" : `2px solid ${C.light}`,
-      borderRadius: 50,
-      padding: "9px 17px",
-      fontWeight: 800,
-      fontSize: 13,
-      cursor: "pointer",
-      fontFamily: FF.body,
-      transition: "all 0.15s",
-    }),
-    input: {
-      border: "2.5px solid #CFD8DC",
-      borderRadius: 14,
-      padding: "12px 16px",
-      fontSize: 15,
-      fontFamily: FF.body,
-      outline: "none",
-      background: "#FFFFFF",
-      width: "100%",
-      boxSizing: "border-box",
-      color: C.dark,
-    },
-    toast: (type) => ({
-      position: "fixed",
-      top: 20,
-      left: "50%",
-      transform: "translateX(-50%)",
-      background: type === "err" ? C.danger : C.success,
-      color: "#fff",
-      padding: "13px 28px",
-      borderRadius: 50,
-      fontWeight: 800,
-      zIndex: 9999,
-      boxShadow: "0 6px 24px rgba(0,0,0,0.18)",
-      fontSize: 15,
-      whiteSpace: "nowrap",
-    }),
-  };
 
   const BackBtn = ({ to, label = "← Back" }) => (
     <button
-      style={css.btn("rgba(255,255,255,0.25)", "#fff", {
+      style={css.btn("#ffffff", "#1A237E", {
         padding: "7px 16px",
         fontSize: 13,
         fontWeight: 800,
-        backdropFilter: "blur(4px)",
+        border: "2px solid #1A237E",
       })}
       onClick={() => setView(to)}
     >
@@ -1062,98 +1048,95 @@ export default function App() {
   if (view === "home") {
     return (
       <div style={css.app}>
-        {/* Bold top section */}
+        {/* Header — 딥블루 단색 */}
         <div style={{
-          background: "linear-gradient(155deg, #1A237E 0%, #283593 60%, #2979FF 100%)",
-          padding: "52px 24px 80px",
+          background: "#1A237E",
+          padding: "34px 24px 54px",
           textAlign: "center",
           position: "relative",
           overflow: "hidden",
         }}>
-          <div style={{ position: "absolute", top: -50, right: -50, width: 180, height: 180, borderRadius: "50%", background: "rgba(255,255,255,0.05)" }} />
-          <div style={{ position: "absolute", bottom: -30, left: -20, width: 130, height: 130, borderRadius: "50%", background: "rgba(255,87,34,0.25)" }} />
-          <div style={{ position: "absolute", top: 20, right: 28, fontSize: 28, opacity: 0.3 }}>🌟</div>
-          <div style={{ position: "absolute", bottom: 36, left: 24, fontSize: 22, opacity: 0.3 }}>✨</div>
-          <div className="cls-float" style={{ fontSize: 72, lineHeight: 1, marginBottom: 12 }}>⭐</div>
-          <h1 style={{ fontFamily: FF.display, fontSize: 46, color: "#fff", margin: "0 0 8px", letterSpacing: 0.5 }}>
+          <div style={{ position: "absolute", top: -40, right: -40, width: 160, height: 160, borderRadius: "50%", background: "rgba(255,255,255,0.05)" }} />
+          <div style={{ position: "absolute", bottom: -24, left: -24, width: 110, height: 110, borderRadius: "50%", background: "rgba(255,255,255,0.05)" }} />
+          <div className="cls-float" style={{ fontSize: 68, lineHeight: 1, marginBottom: 12 }}>⭐</div>
+          <h1 style={{ fontFamily: FF.display, fontSize: 44, color: "#fff", margin: "0 0 6px", letterSpacing: 0.5 }}>
             Class Stars!
           </h1>
-          <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 14, fontWeight: 700, letterSpacing: 0.3 }}>
+          <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 14, fontWeight: 700 }}>
             Mr. Dennis's English Class ✏️
           </div>
         </div>
 
         {toast && <div style={css.toast(toast.type)}>{toast.msg}</div>}
 
-        {/* White panel pulled up */}
+        {/* Content panel */}
         <div style={{
           background: C.bg,
           borderRadius: "28px 28px 0 0",
           marginTop: -28,
-          padding: "28px 20px 32px",
+          padding: "28px 20px 36px",
           maxWidth: 600,
           margin: "-28px auto 0",
         }}>
 
-          {/* Student CTA — big primary block */}
+          {/* Student 카드 — C.primary 배경 */}
           <button
             className="cls-btn"
             onClick={() => setView("classSelect")}
             style={{
+              ...css.card({ marginBottom: 8 }),
               width: "100%",
               background: C.primary,
-              color: "#fff",
               border: "none",
-              borderRadius: 20,
-              padding: "22px 20px",
-              marginBottom: 12,
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              fontFamily: FF.body,
-              boxShadow: `0 7px 0 #BF360C`,
+              padding: "20px 20px",
               textAlign: "left",
+              fontFamily: FF.body,
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <span style={{ fontSize: 46 }}>🧒</span>
+              <span style={{ fontSize: 44 }}>🧒</span>
               <div>
-                <div style={{ fontFamily: FF.display, fontSize: 23, color: "#fff", letterSpacing: 0.3 }}>I'm a Student</div>
+                <div style={{ fontFamily: FF.display, fontSize: 22, color: "#fff", letterSpacing: 0.3 }}>I'm a Student</div>
                 <div style={{ fontSize: 13, color: "rgba(255,255,255,0.82)", fontWeight: 700, marginTop: 2 }}>Check my stars ⭐</div>
               </div>
             </div>
-            <span style={{ fontSize: 26, color: "rgba(255,255,255,0.7)" }}>→</span>
+            <span style={{ fontSize: 24, color: "rgba(255,255,255,0.7)" }}>→</span>
           </button>
 
-          {/* Teacher — outlined */}
+          {/* Teacher 카드 — 흰 배경, C.primary 테두리 */}
           <button
             className="cls-btn"
             onClick={() => setView("adminLogin")}
             style={{
+              ...css.card({ marginBottom: 8 }),
               width: "100%",
-              background: "transparent",
-              color: C.mid,
-              border: `2.5px solid #CFD8DC`,
-              borderRadius: 20,
-              padding: "16px 20px",
-              marginBottom: 28,
+              backgroundColor: "#FFFFFF",
+              background: "#FFFFFF",
+              border: `2px solid ${C.primary}`,
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
-              gap: 14,
-              fontFamily: FF.body,
+              justifyContent: "space-between",
+              padding: "20px 20px",
               textAlign: "left",
+              fontFamily: FF.body,
             }}
           >
-            <span style={{ fontSize: 36 }}>👩‍🏫</span>
-            <div>
-              <div style={{ fontFamily: FF.display, fontSize: 19, color: C.dark, letterSpacing: 0.3 }}>I'm the Teacher</div>
-              <div style={{ fontSize: 12, color: C.muted, fontWeight: 700, marginTop: 2 }}>Manage class &amp; points</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+              <span style={{ fontSize: 44 }}>👩‍🏫</span>
+              <div>
+                <div style={{ fontFamily: FF.display, fontSize: 22, color: C.primary, letterSpacing: 0.3 }}>I'm the Teacher</div>
+                <div style={{ fontSize: 13, color: "#888888", fontWeight: 700, marginTop: 2 }}>Manage class &amp; points</div>
+              </div>
             </div>
+            <span style={{ fontSize: 24, color: C.primary }}>→</span>
           </button>
 
-          {/* Notices — plain list, no card wrapper */}
+          {/* Notices */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
             <h3 style={{ fontFamily: FF.display, fontSize: 20, color: C.dark, margin: 0, letterSpacing: 0.3 }}>📢 Notices</h3>
             <button
@@ -1165,15 +1148,16 @@ export default function App() {
           </div>
 
           {sortedNotices.length === 0 ? (
-            <div style={{ color: C.muted, textAlign: "center", padding: "20px 0", fontSize: 15 }}>
+            <div style={css.card({ color: C.muted, textAlign: "center", padding: "24px 16px", fontSize: 15 })}>
               No notices yet 📭
             </div>
           ) : (
-            sortedNotices.slice(0, 3).map((notice, i) => (
-              <div key={notice.id} style={{
-                padding: "14px 0",
-                borderBottom: i < Math.min(sortedNotices.length, 3) - 1 ? `1.5px solid #ECEFF1` : "none",
-              }}>
+            sortedNotices.slice(0, 3).map((notice) => (
+              <div key={notice.id} style={css.card({
+                padding: "12px 16px",
+                background: notice.pinned ? "#FFFDE7" : C.card,
+                borderLeft: notice.pinned ? `4px solid ${C.accent}` : "4px solid transparent",
+              })}>
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 4 }}>
                   <div style={{ fontWeight: 800, fontSize: 15, color: C.dark, flex: 1 }}>
                     {notice.pinned ? "📌 " : ""}{notice.title}
@@ -1190,53 +1174,45 @@ export default function App() {
   }
 
   if (view === "noticeBoard") {
+    const noticeBorderColor = (title) =>
+      title?.startsWith("G6") ? "#E64A19"
+      : title?.startsWith("G5") ? "#1565C0"
+      : title?.startsWith("G3") ? "#2E7D32"
+      : "#FF5722";
+
     return (
       <div style={css.app}>
-        <div style={{ ...css.header(), background: "linear-gradient(135deg, #1A237E, #2979FF)" }}>
+        <div style={{ ...css.header(), background: "#1A237E" }}>
           <BackBtn to="home" />
           <h1 style={css.htitle}>📢 Notice Board</h1>
           <div style={{ width: 70 }} />
         </div>
         <div style={css.wrap}>
           {sortedNotices.length === 0 ? (
-            <div style={{ ...css.card({ textAlign: "center", color: C.muted, padding: 36, fontSize: 16 }) }}>
+            <div style={css.card({ textAlign: "center", color: C.muted, padding: 36, fontSize: 16 })}>
               No notices yet 📭
             </div>
           ) : (
             sortedNotices.map((notice) => (
               <div
                 key={notice.id}
-                style={{
-                  ...css.card({
-                    background: notice.pinned ? "#FFFDE7" : "#FFFFFF",
-                    borderLeft: notice.pinned ? `5px solid ${C.accent}` : "5px solid transparent",
-                  }),
-                }}
+                style={css.card({
+                  marginBottom: 10,
+                  padding: "14px 16px",
+                  borderLeft: `4px solid ${noticeBorderColor(notice.title)}`,
+                  background: "#FFFFFF",
+                })}
               >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 10,
-                    alignItems: "center",
-                    marginBottom: 8,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <div style={{ fontWeight: 800, fontSize: 18 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 6 }}>
+                  <div style={{ fontWeight: 800, fontSize: 16, color: C.dark, flex: 1 }}>
                     {notice.pinned ? "📌 " : ""}
                     {notice.title}
                   </div>
-                  <span
-                    style={css.pill(
-                      notice.pinned ? C.accent : C.light,
-                      notice.pinned ? C.dark : C.muted
-                    )}
-                  >
+                  <span style={{ color: "#888", fontSize: 12, fontWeight: 600, flexShrink: 0, marginTop: 2 }}>
                     {fmtDate(notice.date)}
                   </span>
                 </div>
-                <div style={{ fontSize: 15, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+                <div style={{ fontSize: 14, lineHeight: 1.6, color: C.mid, whiteSpace: "pre-wrap" }}>
                   {notice.body}
                 </div>
               </div>
@@ -1250,29 +1226,22 @@ export default function App() {
   if (view === "adminLogin") {
     return (
       <div style={css.app}>
-        <div style={css.header()}>
+        <div style={{ ...css.header(), background: "#1A237E" }}>
           <BackBtn to="home" />
           <h1 style={css.htitle}>Teacher Login 🔐</h1>
           <div style={{ width: 70 }} />
         </div>
-        <div
-          style={{
-            ...css.wrap,
-            maxWidth: 420,
-            paddingTop: 60,
-            textAlign: "center",
-          }}
-        >
-          <div style={css.card()}>
+        <div style={{ maxWidth: 400, margin: "48px auto 0", padding: "0 20px", textAlign: "center" }}>
+          <div style={css.card({ padding: "32px 28px" })}>
             <div style={{ fontSize: 52, marginBottom: 14 }}>🔑</div>
             <h3 style={{ marginBottom: 12, fontSize: 20, fontWeight: 800 }}>
               Teacher Login
             </h3>
             <p style={{ color: C.muted, fontSize: 13, marginBottom: 18 }}>
-              Enter your teacher email login and panel password
+              Enter your teacher email and password
             </p>
             <input
-              style={{ ...css.input, marginBottom: 10 }}
+              style={{ ...css.input, marginBottom: 10, border: "2px solid #1A237E" }}
               type="email"
               value={adminEmail}
               onChange={(e) => {
@@ -1282,71 +1251,36 @@ export default function App() {
               placeholder="Teacher email"
             />
             <input
-              style={{ ...css.input, marginBottom: 10 }}
+              style={{ ...css.input, marginBottom: 12, border: "2px solid #1A237E" }}
               type="password"
               value={adminPassword}
               onChange={(e) => {
                 setAdminPassword(e.target.value);
                 setAdminLoginError("");
               }}
-              placeholder="Firebase Auth password"
-            />
-            <input
-              style={{
-                ...css.input,
-                textAlign: "center",
-                fontSize: 20,
-                letterSpacing: 6,
-                marginBottom: 12,
-              }}
-              type="password"
-              value={pwInput}
-              onChange={(e) => {
-                setPwInput(e.target.value);
-                setPwError(false);
-              }}
               onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  checkPassword(pwInput).then(async (ok) => {
-                    if (ok) {
-                      setPwError(false);
-                      await loginAdmin();
-                    } else setPwError(true);
-                  });
-                }
+                if (e.key === "Enter") loginAdmin();
               }}
-              placeholder="Teacher panel password"
+              placeholder="Password"
             />
-            {pwError && (
-              <p style={{ color: C.danger, fontWeight: 700, marginBottom: 10 }}>
-                Wrong teacher panel password!
-              </p>
-            )}
             {!!adminLoginError && (
               <p style={{ color: C.danger, fontWeight: 700, marginBottom: 10 }}>
                 {adminLoginError}
               </p>
             )}
             <button
-              style={css.btn(C.primary, "#fff", {
+              style={css.btn("#1A237E", "#fff", {
                 width: "100%",
                 padding: 14,
                 fontSize: 16,
                 marginBottom: 10,
               })}
-              onClick={() =>
-                checkPassword(pwInput).then(async (ok) => {
-                  if (ok) {
-                    setPwError(false);
-                    await loginAdmin();
-                  } else setPwError(true);
-                })
-              }
+              onClick={loginAdmin}
             >
               Login
             </button>
             <p style={{ color: C.muted, fontSize: 12, marginTop: 10 }}>
-              🔐 Teacher password + Firebase email login
+              🔐 Firebase email login
             </p>
           </div>
         </div>
@@ -1355,9 +1289,21 @@ export default function App() {
   }
 
   if (view === "classSelect") {
+    const gradeColor = (name) =>
+      name.startsWith("G6") ? "#E64A19"
+      : name.startsWith("G5") ? "#1565C0"
+      : name.startsWith("G3") ? "#2E7D32"
+      : C.primary;
+
+    const gradeShadow = (name) =>
+      name.startsWith("G6") ? "#BF360C"
+      : name.startsWith("G5") ? "#0D47A1"
+      : name.startsWith("G3") ? "#1B5E20"
+      : "#000";
+
     return (
       <div style={css.app}>
-        <div style={{ ...css.header(), background: "linear-gradient(135deg, #FF5722, #FF9800)" }}>
+        <div style={{ ...css.header(), background: "#1A237E" }}>
           <BackBtn to="home" />
           <h1 style={css.htitle}>Pick Your Class 🏫</h1>
           <div style={{ width: 70 }} />
@@ -1367,37 +1313,52 @@ export default function App() {
             Which class are you in? 👇
           </p>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-            {data.classes.map((cls) => (
-              <button
-                key={cls.id}
-                className="cls-btn"
-                onClick={() => {
-                  setPinClassId(cls.id);
-                  setPinInput("");
-                  setPinError(false);
-                  setView("pinLogin");
-                }}
-                style={{
-                  background: cls.color,
-                  border: "none",
-                  borderRadius: 24,
-                  padding: "28px 14px 22px",
-                  cursor: "pointer",
-                  fontFamily: FF.body,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 8,
-                  boxShadow: `0 6px 0 ${cls.color}99`,
-                }}
-              >
-                <span style={{ fontSize: 48 }}>{cls.emoji}</span>
-                <span style={{ fontFamily: FF.display, fontSize: 20, color: "#fff", letterSpacing: 0.3 }}>{cls.name}</span>
-                <span style={{ background: "rgba(255,255,255,0.22)", borderRadius: 50, padding: "3px 13px", fontSize: 12, color: "#fff", fontWeight: 800 }}>
-                  {cls.students.length} students
-                </span>
-              </button>
-            ))}
+            {data.classes.map((cls) => {
+              const bg = gradeColor(cls.name);
+              const shadow = gradeShadow(cls.name);
+              return (
+                <button
+                  key={cls.id}
+                  className="cls-btn"
+                  onClick={() => {
+                    setPinClassId(cls.id);
+                    setPinInput("");
+                    setPinError(false);
+                    setView("pinLogin");
+                  }}
+                  style={{
+                    background: bg,
+                    border: "none",
+                    borderRadius: 24,
+                    padding: "24px 14px 20px",
+                    cursor: "pointer",
+                    fontFamily: FF.body,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 8,
+                    boxShadow: `0 6px 0 ${shadow}`,
+                  }}
+                >
+                  <div style={{
+                    background: "rgba(255,255,255,0.25)",
+                    borderRadius: "50%",
+                    width: 60,
+                    height: 60,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 34,
+                  }}>
+                    {cls.emoji}
+                  </div>
+                  <span style={{ fontFamily: FF.display, fontSize: 20, color: "#fff", letterSpacing: 0.3 }}>{cls.name}</span>
+                  <span style={{ background: "rgba(255,255,255,0.25)", borderRadius: 50, padding: "3px 13px", fontSize: 12, color: "#fff", fontWeight: 800 }}>
+                    {cls.students.length} students
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -1428,7 +1389,7 @@ export default function App() {
 
     return (
       <div style={css.app}>
-        <div style={css.header(cls.color)}>
+        <div style={{ ...css.header(), background: "#1A237E" }}>
           <BackBtn to="classSelect" />
           <h1 style={css.htitle}>
             {cls.emoji} {cls.name}
@@ -1437,28 +1398,29 @@ export default function App() {
         </div>
         <div style={{ ...css.wrap, maxWidth: 360, paddingTop: 36, textAlign: "center" }}>
           <div style={css.card({ padding: "28px 24px" })}>
-            <div style={{ fontSize: 52, marginBottom: 8 }}>🔢</div>
-            <h3 style={{ fontFamily: FF.display, fontSize: 24, marginBottom: 4, color: C.dark }}>
+            <div style={{ fontSize: 48, marginBottom: 8 }}>🔢</div>
+            <h3 style={{ fontFamily: FF.display, fontSize: 24, marginBottom: 4, color: "#1A237E" }}>
               Enter your PIN
             </h3>
             <p style={{ color: C.muted, fontSize: 14, fontWeight: 700, marginBottom: 20 }}>
               Ask your teacher if you forgot!
             </p>
+            {/* PIN 입력 표시 */}
             <div style={{ display: "flex", justifyContent: "center", gap: 12, marginBottom: 24 }}>
               {[0, 1, 2, 3].map((i) => (
                 <div
                   key={i}
                   style={{
-                    width: 52,
-                    height: 56,
+                    width: 56,
+                    height: 60,
                     borderRadius: 16,
-                    border: `3px solid ${pinInput.length > i ? cls.color : "#E2E8F0"}`,
-                    background: pinInput.length > i ? cls.color + "18" : "#F8FAFC",
+                    border: `3px solid #1A237E`,
+                    background: pinInput.length > i ? "#1A237E" : "#FFFFFF",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    fontSize: 26,
-                    color: cls.color,
+                    fontSize: 28,
+                    color: "#FFFFFF",
                     fontWeight: 900,
                     transition: "all 0.15s",
                   }}
@@ -1467,12 +1429,13 @@ export default function App() {
                 </div>
               ))}
             </div>
+            {/* 키패드 */}
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(3, 1fr)",
-                gap: 10,
-                maxWidth: 220,
+                gridTemplateColumns: "repeat(3, 72px)",
+                gap: 12,
+                justifyContent: "center",
                 margin: "0 auto 14px",
               }}
             >
@@ -1481,17 +1444,20 @@ export default function App() {
                   key={i}
                   disabled={k === ""}
                   style={{
-                    ...css.btn(
-                      k === "⌫" ? "#FFE5E5" : "#F1F5F9",
-                      k === "⌫" ? C.danger : cls.color,
-                      {
-                        padding: "15px 0",
-                        fontSize: 20,
-                        borderRadius: 12,
-                        opacity: k === "" ? 0 : 1,
-                        cursor: k === "" ? "default" : "pointer",
-                      }
-                    ),
+                    width: 72,
+                    height: 72,
+                    background: k === "⌫" ? "#FFCDD2" : "#F1F5F9",
+                    color: k === "⌫" ? "#C62828" : "#1A237E",
+                    border: "none",
+                    borderRadius: 16,
+                    fontSize: 24,
+                    fontWeight: 800,
+                    fontFamily: FF.body,
+                    cursor: k === "" ? "default" : "pointer",
+                    opacity: k === "" ? 0 : 1,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                   }}
                   onClick={() => {
                     if (k === "⌫") {
@@ -1532,18 +1498,18 @@ export default function App() {
 
     return (
       <div style={css.app}>
-        {/* Colorful hero header */}
+        {/* Hero header — #1A237E */}
         <div style={{
-          background: `linear-gradient(150deg, ${cls.color} 0%, ${cls.color}BB 100%)`,
+          background: "#1A237E",
           padding: "36px 24px 60px",
           textAlign: "center",
           position: "relative",
           overflow: "hidden",
         }}>
-          <div style={{ position: "absolute", top: -40, right: -40, width: 140, height: 140, borderRadius: "50%", background: "rgba(255,255,255,0.1)" }} />
-          <div style={{ position: "absolute", bottom: -20, left: -20, width: 100, height: 100, borderRadius: "50%", background: "rgba(0,0,0,0.06)" }} />
+          <div style={{ position: "absolute", top: -40, right: -40, width: 140, height: 140, borderRadius: "50%", background: "rgba(255,255,255,0.05)" }} />
+          <div style={{ position: "absolute", bottom: -20, left: -20, width: 100, height: 100, borderRadius: "50%", background: "rgba(255,255,255,0.05)" }} />
           <div style={{ position: "absolute", top: 14, left: 16 }}><BackBtn to="classSelect" /></div>
-          <div style={{ fontFamily: FF.display, fontSize: 27, color: "rgba(255,255,255,0.95)", marginTop: 8, letterSpacing: 0.3 }}>
+          <div style={{ fontFamily: FF.display, fontSize: 27, color: "#fff", marginTop: 8, letterSpacing: 0.3 }}>
             Hi, {me.name}! 👋
           </div>
           <div className="cls-pop" style={{ fontFamily: FF.display, fontSize: 88, color: "#fff", lineHeight: 1, marginTop: 10, marginBottom: 2 }}>
@@ -1551,11 +1517,11 @@ export default function App() {
           </div>
           <div style={{ color: "rgba(255,255,255,0.88)", fontSize: 18, fontWeight: 700, marginBottom: 18 }}>⭐ Stars</div>
           <div style={{ display: "flex", justifyContent: "center", gap: 10 }}>
-            <div style={{ background: "rgba(255,255,255,0.2)", borderRadius: 16, padding: "8px 20px" }}>
+            <div style={{ background: "rgba(255,255,255,0.15)", borderRadius: 16, padding: "8px 20px" }}>
               <div style={{ fontSize: 10, color: "rgba(255,255,255,0.8)", fontWeight: 800, marginBottom: 2, letterSpacing: 0.5 }}>CLASS RANK</div>
               <div style={{ fontFamily: FF.display, fontSize: 26, color: "#fff" }}>{medal(myClassRank - 1)}</div>
             </div>
-            <div style={{ background: "rgba(255,255,255,0.2)", borderRadius: 16, padding: "8px 20px" }}>
+            <div style={{ background: "rgba(255,255,255,0.15)", borderRadius: 16, padding: "8px 20px" }}>
               <div style={{ fontSize: 10, color: "rgba(255,255,255,0.8)", fontWeight: 800, marginBottom: 2, letterSpacing: 0.5 }}>OVERALL</div>
               <div style={{ fontFamily: FF.display, fontSize: 26, color: "#fff" }}>#{myGlobalRank}</div>
             </div>
@@ -1574,7 +1540,18 @@ export default function App() {
             ].map(([t, label]) => (
               <button
                 key={t}
-                style={css.tab(studentTab === t, cls.color)}
+                style={{
+                  background: studentTab === t ? "#1A237E" : "#FFFFFF",
+                  color: studentTab === t ? "#fff" : "#888888",
+                  border: studentTab === t ? "none" : "2px solid #E0E0E0",
+                  borderRadius: 50,
+                  padding: "9px 17px",
+                  fontWeight: 800,
+                  fontSize: 13,
+                  cursor: "pointer",
+                  fontFamily: FF.body,
+                  transition: "all 0.15s",
+                }}
                 onClick={() => setStudentTab(t)}
               >
                 {label}
@@ -1587,27 +1564,58 @@ export default function App() {
               {data.shop.map((item) => (
                 <div
                   key={item.id}
-                  style={{
-                    ...css.card({
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "14px 18px",
-                    }),
-                  }}
+                  style={css.card({
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 14,
+                    padding: "14px 16px",
+                    marginBottom: 8,
+                  })}
                 >
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 800, fontSize: 15 }}>{item.name}</div>
-                    <div style={{ color: C.muted, fontSize: 13 }}>{item.desc}</div>
+                  {/* 아이콘 */}
+                  <div style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: "50%",
+                    background: "#FFF3E0",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 24,
+                    flexShrink: 0,
+                  }}>
+                    {item.emoji || "🎁"}
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-                    <span style={css.pill(C.accent, C.dark)}>⭐ {item.price}</span>
+                  {/* 텍스트 */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 800, fontSize: 15, color: C.dark }}>{item.name}</div>
+                    <div style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>{item.desc}</div>
+                  </div>
+                  {/* 가격 + 구매 버튼 */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                    <span style={{
+                      background: "#FF5722",
+                      color: "#fff",
+                      borderRadius: 50,
+                      padding: "4px 10px",
+                      fontSize: 12,
+                      fontWeight: 800,
+                    }}>⭐ {item.price}</span>
                     <button
-                      style={css.btn(
-                        me.points >= item.price ? cls.color : C.muted,
-                        "#fff",
-                        { padding: "7px 14px", fontSize: 13 }
-                      )}
+                      style={{
+                        background: me.points >= item.price ? "#1A237E" : C.muted,
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: 50,
+                        width: 36,
+                        height: 36,
+                        fontSize: 16,
+                        cursor: me.points >= item.price ? "pointer" : "default",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                      }}
                       disabled={me.points < item.price}
                       onClick={() => {
                         if (item.name.includes("Choose Your Seat")) {
@@ -1629,7 +1637,7 @@ export default function App() {
                         }
                       }}
                     >
-                      {me.points >= item.price ? "Buy" : "💸"}
+                      {me.points >= item.price ? "✓" : "💸"}
                     </button>
                   </div>
                 </div>
@@ -1727,120 +1735,76 @@ export default function App() {
             </div>
           )}
 
-          {studentTab === "ranking" && (
-            <div>
-              <p style={{ fontWeight: 800, color: C.muted, fontSize: 13, marginBottom: 10 }}>
-                CLASS — {cls.name}
-              </p>
-              {classRanked.map((s, i) => (
-                <div
-                  key={s.id}
-                  style={{
-                    ...css.card({
-                      padding: "12px 18px",
-                      background: s.id === me.id ? cls.color + "18" : C.card,
-                      border: s.id === me.id ? `2px solid ${cls.color}` : "2px solid transparent",
-                    }),
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 14,
-                      marginBottom:
-                        (s.purchases || []).filter((p) => (typeof p === "object" ? p.isPublic : true)).length > 0
-                          ? 8
-                          : 0,
-                    }}
-                  >
-                    <span style={{ width: 32, fontSize: 20, textAlign: "center" }}>
-                      {medal(i)}
-                    </span>
-                    <span style={{ flex: 1, fontWeight: 700 }}>
-                      {s.name}
-                      {s.id === me.id ? " (You)" : ""}
-                    </span>
-                    <span style={css.pill(C.accent, C.dark)}>⭐ {s.points}</span>
-                  </div>
-                  {(s.purchases || []).filter((p) => (typeof p === "object" ? p.isPublic : true)).length > 0 && (
-                    <div style={{ marginLeft: 46, display: "flex", flexWrap: "wrap", gap: 5 }}>
-                      {(s.purchases || [])
-                        .filter((p) => (typeof p === "object" ? p.isPublic : true))
-                        .map((p, j) => (
-                          <span key={j} style={{ ...css.pill("#F1F5F9", cls.color), fontSize: 11 }}>
-                            {typeof p === "object" ? p.name : p}
-                          </span>
-                        ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-              <p style={{ fontWeight: 800, color: C.muted, fontSize: 13, margin: "16px 0 10px" }}>
-                OVERALL — Top 10
-              </p>
-              {globalRanked.slice(0, 10).map((s, i) => (
-                <div
-                  key={s.id}
-                  style={{
-                    ...css.card({
-                      padding: "12px 18px",
-                      background: s.id === me.id ? cls.color + "18" : C.card,
-                      border: s.id === me.id ? `2px solid ${cls.color}` : "2px solid transparent",
-                    }),
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 14,
-                      marginBottom:
-                        (s.purchases || []).filter((p) => (typeof p === "object" ? p.isPublic : true)).length > 0
-                          ? 8
-                          : 0,
-                    }}
-                  >
-                    <span style={{ width: 32, fontSize: 20, textAlign: "center" }}>
-                      {medal(i)}
+          {studentTab === "ranking" && (() => {
+            const podiumBg = (i) => i === 0 ? "#FFD700" : i === 1 ? "#B0BEC5" : "#FFAB76";
+            const podiumText = (i) => i === 0 ? "#7A5800" : i === 1 ? "#37474F" : "#7A3200";
+            const renderRankRow = (s, i, showClass = false) => {
+              const isMe = s.id === me.id;
+              const isPodium = i < 3;
+              const publicPurchases = (s.purchases || []).filter((p) => (typeof p === "object" ? p.isPublic : true));
+              return (
+                <div key={s.id} style={css.card({
+                  padding: "12px 16px",
+                  marginBottom: 6,
+                  background: isPodium ? podiumBg(i) : isMe ? "#E8EAF6" : C.card,
+                  borderLeft: isMe && !isPodium ? "4px solid #1A237E" : isPodium ? "none" : "4px solid transparent",
+                  borderRadius: 16,
+                })}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: publicPurchases.length > 0 ? 8 : 0 }}>
+                    <span style={{ width: 34, fontSize: isPodium ? 22 : 16, textAlign: "center", fontWeight: 800, color: isPodium ? podiumText(i) : C.mid }}>
+                      {isPodium ? (i === 0 ? "👑" : medal(i)) : `#${i + 1}`}
                     </span>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 700 }}>
-                        {s.name}
-                        {s.id === me.id ? " (You)" : ""}
+                      <div style={{ fontWeight: 800, fontSize: 15, color: isPodium ? podiumText(i) : C.dark }}>
+                        {s.name}{isMe ? " (You)" : ""}
                       </div>
-                      <div style={{ fontSize: 12, color: C.muted }}>{s.className}</div>
+                      {showClass && <div style={{ fontSize: 12, color: isPodium ? podiumText(i) : C.muted, marginTop: 1 }}>{s.className}</div>}
                     </div>
-                    <span style={css.pill(C.accent, C.dark)}>⭐ {s.points}</span>
+                    <span style={{
+                      background: isPodium ? "rgba(0,0,0,0.12)" : C.cream,
+                      color: isPodium ? podiumText(i) : C.dark,
+                      borderRadius: 50,
+                      padding: "4px 10px",
+                      fontSize: 12,
+                      fontWeight: 800,
+                    }}>⭐ {s.points}</span>
                   </div>
-                  {(s.purchases || []).filter((p) => (typeof p === "object" ? p.isPublic : true)).length > 0 && (
+                  {publicPurchases.length > 0 && (
                     <div style={{ marginLeft: 46, display: "flex", flexWrap: "wrap", gap: 5 }}>
-                      {(s.purchases || [])
-                        .filter((p) => (typeof p === "object" ? p.isPublic : true))
-                        .map((p, j) => (
-                          <span key={j} style={{ ...css.pill("#F1F5F9", s.classColor), fontSize: 11 }}>
-                            {typeof p === "object" ? p.name : p}
-                          </span>
-                        ))}
+                      {publicPurchases.map((p, j) => (
+                        <span key={j} style={{ ...css.pill("#F1F5F9", isPodium ? podiumText(i) : cls.color), fontSize: 11 }}>
+                          {typeof p === "object" ? p.name : p}
+                        </span>
+                      ))}
                     </div>
                   )}
                 </div>
-              ))}
-            </div>
-          )}
+              );
+            };
+            return (
+              <div>
+                <p style={{ fontWeight: 800, color: C.muted, fontSize: 13, marginBottom: 10 }}>CLASS — {cls.name}</p>
+                {classRanked.map((s, i) => renderRankRow(s, i, false))}
+                <p style={{ fontWeight: 800, color: C.muted, fontSize: 13, margin: "16px 0 10px" }}>OVERALL — Top 10</p>
+                {globalRanked.slice(0, 10).map((s, i) => renderRankRow(s, i, true))}
+              </div>
+            );
+          })()}
 
           {studentTab === "purchases" && (
             <div>
-              <p style={{ fontWeight: 800, color: C.muted, fontSize: 13, marginBottom: 10 }}>
+              <p style={{ fontWeight: 800, color: C.muted, fontSize: 13, marginBottom: 10, letterSpacing: 0.5 }}>
                 MY PURCHASES — {cls.name}
               </p>
               {(me.purchases || []).length === 0 ? (
-                <div style={{ ...css.card({ textAlign: "center", color: C.muted, padding: 30 }) }}>
-                  No purchases yet! 🛍
+                <div style={{ ...css.card({ textAlign: "center", padding: "36px 20px" }) }}>
+                  <div style={{ fontSize: 40, marginBottom: 10 }}>🛒</div>
+                  <div style={{ color: C.muted, fontWeight: 700 }}>No purchases yet!</div>
+                  <div style={{ color: C.muted, fontSize: 13, marginTop: 4 }}>Visit the shop to spend your stars</div>
                 </div>
               ) : (
                 (me.purchases || []).map((p, i) => {
-                  const name = typeof p === "object" ? p.name : p;
+                  const pname = typeof p === "object" ? p.name : p;
                   const isPublic = typeof p === "object" ? p.isPublic : true;
                   return (
                     <div
@@ -1849,28 +1813,27 @@ export default function App() {
                         ...css.card({
                           display: "flex",
                           alignItems: "center",
-                          gap: 12,
-                          padding: "12px 18px",
+                          gap: 14,
+                          padding: "14px 18px",
                         }),
                       }}
                     >
-                      <span style={{ fontSize: 20 }}>🛍</span>
-                      <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>{name}</span>
-                      <span
-                        style={css.pill(
-                          isPublic ? C.success + "22" : "#F1F5F9",
-                          isPublic ? C.success : C.muted
-                        )}
-                      >
-                        {isPublic ? "🌍 Public" : "🔒 Private"}
-                      </span>
-                      <span style={css.pill(cls.color, "#fff", { fontSize: 11 })}>✅</span>
+                      <div style={{ width: 44, height: 44, borderRadius: 14, background: "#FFF3E0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>
+                        🛍
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 800, fontSize: 15, color: C.dark, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pname}</div>
+                        <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{isPublic ? "🌍 Public" : "🔒 Private"}</div>
+                      </div>
+                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        <span style={{ fontWeight: 900, fontSize: 15, color: "#FF5722" }}>✅</span>
+                      </div>
                     </div>
                   );
                 })
               )}
 
-              <p style={{ fontWeight: 800, color: C.muted, fontSize: 13, margin: "16px 0 10px" }}>
+              <p style={{ fontWeight: 800, color: C.muted, fontSize: 13, margin: "16px 0 10px", letterSpacing: 0.5 }}>
                 CLASSMATES' PURCHASES
               </p>
               {classRanked.filter(
@@ -1908,8 +1871,10 @@ export default function App() {
 
           {studentTab === "history" &&
             ((me.history || []).length === 0 ? (
-              <div style={{ ...css.card({ textAlign: "center", color: C.muted, padding: 30 }) }}>
-                No history yet! 🌟
+              <div style={{ ...css.card({ textAlign: "center", padding: "36px 20px" }) }}>
+                <div style={{ fontSize: 40, marginBottom: 10 }}>📋</div>
+                <div style={{ color: C.muted, fontWeight: 700 }}>No history yet!</div>
+                <div style={{ color: C.muted, fontSize: 13, marginTop: 4 }}>Your points activity will appear here</div>
               </div>
             ) : (
               (me.history || []).map((h, i) => (
@@ -1920,54 +1885,43 @@ export default function App() {
                       display: "flex",
                       justifyContent: "space-between",
                       alignItems: "center",
-                      padding: "12px 18px",
+                      padding: "14px 18px",
+                      borderLeft: `4px solid ${h.type === "earn" ? "#2E7D32" : "#C62828"}`,
+                      borderRadius: "0 20px 20px 0",
                     }),
                   }}
                 >
-                  <div>
-                    <div style={{ fontWeight: 700 }}>{h.reason}</div>
-                    <div style={{ color: C.muted, fontSize: 13 }}>{fmtDate(h.date)}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 800, fontSize: 15, color: C.dark }}>{h.reason}</div>
+                    <div style={{ color: "#888", fontSize: 12, marginTop: 3 }}>{fmtDate(h.date)}</div>
                   </div>
                   <span
                     style={{
                       fontWeight: 900,
                       fontSize: 18,
-                      color: h.type === "earn" ? C.success : C.danger,
+                      color: h.type === "earn" ? "#2E7D32" : "#C62828",
+                      flexShrink: 0,
+                      marginLeft: 12,
                     }}
                   >
-                    {h.type === "earn" ? "+" : ""}
-                    {h.pts}⭐
+                    {h.type === "earn" ? "+" : "-"}{h.pts}⭐
                   </span>
                 </div>
               ))
             ))}
 
           {studentTab === "pin" && (
-            <PinChangeTab
-              me={me}
-              cls={cls}
-              requestMode
-              onSave={async (newPin) => {
-                try {
-                  await addDoc(REQUESTS_COL, {
-                    type: "pinChange",
-                    cid: cls.id,
-                    sid: me.id,
-                    studentName: me.name,
-                    className: cls.name,
-                    newPin,
-                    date: today(),
-                    createdAtMs: Date.now(),
-                  });
-                  showToast("🔑 PIN change request sent!");
-                } catch (e) {
-                  console.error(e);
-                  showToast("PIN request failed!", "err");
-                }
-              }}
-              css={css}
-              C={C}
-            />
+            <div>
+              <div style={{ ...css.card({ textAlign: "center", padding: "36px 24px" }) }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: C.muted, letterSpacing: 1, marginBottom: 12 }}>YOUR PIN</div>
+                <div style={{ fontFamily: FF.display, fontSize: 56, fontWeight: 900, color: "#1A237E", letterSpacing: 8 }}>
+                  {me.pin}
+                </div>
+                <div style={{ fontSize: 13, color: "#888", marginTop: 16, lineHeight: 1.6 }}>
+                  Ask your teacher to change your PIN
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -1980,7 +1934,7 @@ export default function App() {
 
     return (
       <div style={css.app}>
-        <div style={css.header()}>
+        <div style={{ ...css.header(), background: "#1A237E" }}>
           <button
             style={css.btn("rgba(255,255,255,0.2)", "#fff", { padding: "6px 14px", fontSize: 13 })}
             onClick={logoutAdmin}
@@ -2010,7 +1964,18 @@ export default function App() {
               ["notices", "📢 Notices"],
               ["settings", "⚙️ Settings"],
             ].map(([t, label]) => (
-              <button key={t} style={css.tab(adminTab === t)} onClick={() => setAdminTab(t)}>
+              <button key={t} style={{
+                background: adminTab === t ? "#1A237E" : "#FFFFFF",
+                color: adminTab === t ? "#fff" : "#888888",
+                border: adminTab === t ? "none" : "2px solid #E0E0E0",
+                borderRadius: 50,
+                padding: "9px 17px",
+                fontWeight: 800,
+                fontSize: 13,
+                cursor: "pointer",
+                fontFamily: FF.body,
+                transition: "all 0.15s",
+              }} onClick={() => setAdminTab(t)}>
                 {label}
               </button>
             ))}
@@ -2054,7 +2019,7 @@ export default function App() {
                         Whole class:
                       </span>
                       <button
-                        style={css.btn(C.success, "#fff", {
+                        style={css.btn("#2E7D32", "#fff", {
                           padding: "5px 14px",
                           fontSize: 13,
                           borderRadius: 10,
@@ -2064,7 +2029,7 @@ export default function App() {
                         +1⭐
                       </button>
                       <button
-                        style={css.btn(C.danger, "#fff", {
+                        style={css.btn("#C62828", "#fff", {
                           padding: "5px 14px",
                           fontSize: 13,
                           borderRadius: 10,
@@ -2537,16 +2502,19 @@ function SeatPickerPopup({ cls, me, data, item, onClose, onChoose, css, C }) {
         style={{
           background: "#fff",
           borderRadius: 20,
-          padding: 24,
+          overflow: "hidden",
           maxWidth: 400,
           width: "100%",
           boxShadow: "0 8px 40px rgba(0,0,0,0.25)",
         }}
       >
-        <h3 style={{ margin: "0 0 4px", fontWeight: 800, fontSize: 18 }}>🪑 Choose Your Seat</h3>
-        <p style={{ color: C.muted, fontSize: 13, marginBottom: 12 }}>
-          Check the board and pick your seat!
-        </p>
+        <div style={{ background: "#1A237E", padding: "16px 20px" }}>
+          <h3 style={{ margin: 0, fontWeight: 900, fontSize: 18, color: "#fff", fontFamily: FF.display }}>🪑 Choose Your Seat</h3>
+          <p style={{ color: "rgba(255,255,255,0.75)", fontSize: 13, margin: "4px 0 0" }}>
+            Check the board and pick your seat!
+          </p>
+        </div>
+        <div style={{ padding: 20 }}>
         <div
           style={{
             background: "#FFF3E0",
@@ -2582,8 +2550,8 @@ function SeatPickerPopup({ cls, me, data, item, onClose, onChoose, css, C }) {
                   disabled={isTaken}
                   style={{
                     ...css.btn(
-                      isTaken ? "#E0E0E0" : cls.color,
-                      isTaken ? "#888" : "#fff",
+                      isTaken ? "#EEEEEE" : "#ffffff",
+                      isTaken ? "#888" : "#1A237E",
                       {
                         padding: "10px 4px",
                         fontSize: 12,
@@ -2595,6 +2563,7 @@ function SeatPickerPopup({ cls, me, data, item, onClose, onChoose, css, C }) {
                         alignItems: "center",
                         gap: 2,
                         lineHeight: 1.3,
+                        border: isTaken ? "none" : "2px solid #1A237E",
                       }
                     ),
                   }}
@@ -2622,15 +2591,16 @@ function SeatPickerPopup({ cls, me, data, item, onClose, onChoose, css, C }) {
         ))}
         <div style={{ display: "flex", gap: 10, marginBottom: 16, fontSize: 12, color: C.muted }}>
           <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <span style={{ width: 14, height: 14, borderRadius: 4, background: cls.color, display: "inline-block" }} /> Available
+            <span style={{ width: 14, height: 14, borderRadius: 4, background: "#fff", border: "2px solid #1A237E", display: "inline-block" }} /> Available
           </span>
           <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <span style={{ width: 14, height: 14, borderRadius: 4, background: "#E0E0E0", display: "inline-block" }} /> Taken
+            <span style={{ width: 14, height: 14, borderRadius: 4, background: "#EEEEEE", display: "inline-block" }} /> Taken
           </span>
         </div>
-        <button style={css.btn("#F1F5F9", C.dark, { width: "100%", padding: 12 })} onClick={onClose}>
-          Cancel
+        <button style={css.btn("#1A237E", "#fff", { width: "100%", padding: 12, fontWeight: 900 })} onClick={onClose}>
+          Close
         </button>
+        </div>
       </div>
     </div>
   );
@@ -2642,12 +2612,12 @@ function StudentPointRow({ stu, cls, onAdd, css, C }) {
   const [customReason, setCustomReason] = useState("");
 
   return (
-    <div style={{ borderBottom: "1px solid #F0F0F0", paddingBottom: 10, marginBottom: 10 }}>
+    <div style={{ ...css.card({ marginBottom: 8, padding: "12px 16px" }) }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <span style={{ flex: 1, fontWeight: 700, minWidth: 80 }}>🧒 {stu.name}</span>
-        <span style={css.pill(cls.color)}>⭐ {stu.points}</span>
+        <span style={{ flex: 1, fontWeight: 700, minWidth: 80, color: C.dark }}>🧒 {stu.name}</span>
+        <span style={{ color: "#FF5722", fontWeight: 800, fontSize: 15 }}>⭐ {stu.points}</span>
         <button
-          style={css.btn(open ? C.muted : cls.color, "#fff", { padding: "6px 14px", fontSize: 13 })}
+          style={css.btn(open ? C.muted : "#1A237E", "#fff", { padding: "6px 14px", fontSize: 13 })}
           onClick={() => setOpen(!open)}
         >
           {open ? "Close" : "+ Points"}
@@ -2666,7 +2636,7 @@ function StudentPointRow({ stu, cls, onAdd, css, C }) {
             ].map((p) => (
               <button
                 key={p.label}
-                style={css.btn(p.pts > 0 ? C.success : C.danger, "#fff", { padding: "6px 12px", fontSize: 12 })}
+                style={css.btn(p.pts > 0 ? "#2E7D32" : "#C62828", "#fff", { padding: "6px 12px", fontSize: 12 })}
                 onClick={async () => {
                   await onAdd(p.pts, p.label);
                   setOpen(false);
