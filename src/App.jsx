@@ -26,6 +26,9 @@ import {
   buildDennisVillageAwardDismissKey,
   buildDennisVillageAwardNotice,
 } from "./lib/dennisVillageAwardNotice";
+import SeatPickerPopup from "./components/SeatPickerPopup";
+import StudentPointRow from "./components/StudentPointRow";
+import ShopItemRow from "./components/ShopItemRow";
 
 const DennisVillage = lazy(() => import("./DennisVillage"));
 
@@ -1897,6 +1900,7 @@ export default function App() {
                   }}
                   css={css}
                   C={C}
+                  FF={FF}
                 />
               )}
 
@@ -2758,218 +2762,6 @@ export default function App() {
   return null;
 }
 
-function SeatPickerPopup({ cls, me, data, item, onClose, onChoose, css, C }) {
-  const takenSeats = {};
-  cls.students.forEach((s) => {
-    (s.purchases || []).forEach((p) => {
-      const pname = typeof p === "object" ? p.name : p;
-      const match = String(pname).match(/Choose Your Seat (\d+)/);
-      if (match) takenSeats[match[1]] = s.name;
-    });
-  });
-
-  const layout = [
-    ["01", "02", null, "03", "04"],
-    ["05", "06", null, "07", "08"],
-    ["09", "10", null, "11", "12"],
-    ["13", null, null, "14", "15"],
-  ];
-
-  return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.5)",
-        zIndex: 1000,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 16,
-      }}
-    >
-      <div
-        style={{
-          background: "#fff",
-          borderRadius: 20,
-          overflow: "hidden",
-          maxWidth: 400,
-          width: "100%",
-          boxShadow: "0 8px 40px rgba(0,0,0,0.25)",
-        }}
-      >
-        <div style={{ background: "#1A237E", padding: "16px 20px" }}>
-          <h3 style={{ margin: 0, fontWeight: 900, fontSize: 18, color: "#fff", fontFamily: FF.display }}>🪑 Choose Your Seat</h3>
-          <p style={{ color: "rgba(255,255,255,0.75)", fontSize: 13, margin: "4px 0 0" }}>
-            Check the board and pick your seat!
-          </p>
-        </div>
-        <div style={{ padding: 20 }}>
-        <div
-          style={{
-            background: "#FFF3E0",
-            border: "2px solid #E67E22",
-            borderRadius: 10,
-            textAlign: "center",
-            padding: "6px 0",
-            marginBottom: 14,
-            fontSize: 13,
-            fontWeight: 800,
-            color: "#E67E22",
-          }}
-        >
-          🖥 Teacher's Desk
-        </div>
-        {layout.map((row, ri) => (
-          <div
-            key={ri}
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr 24px 1fr 1fr",
-              gap: 6,
-              marginBottom: 6,
-            }}
-          >
-            {row.map((num, ci) => {
-              if (num === null) return <div key={ci} />;
-              const takenBy = takenSeats[num];
-              const isTaken = !!takenBy;
-              return (
-                <button
-                  key={num}
-                  disabled={isTaken}
-                  style={{
-                    ...css.btn(
-                      isTaken ? "#EEEEEE" : "#ffffff",
-                      isTaken ? "#888" : "#1A237E",
-                      {
-                        padding: "10px 4px",
-                        fontSize: 12,
-                        borderRadius: 10,
-                        fontWeight: 900,
-                        cursor: isTaken ? "not-allowed" : "pointer",
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        gap: 2,
-                        lineHeight: 1.3,
-                        border: isTaken ? "none" : "2px solid #1A237E",
-                      }
-                    ),
-                  }}
-                  onClick={() =>
-                    onChoose({
-                      type: "purchase",
-                      cid: cls.id,
-                      sid: me.id,
-                      studentName: me.name,
-                      className: cls.name,
-                      item: `🪑 Choose Your Seat ${num}`,
-                      price: item.price,
-                      date: today(),
-                      createdAtMs: Date.now(),
-                      isPublic: true,
-                    })
-                  }
-                >
-                  <span>{num}</span>
-                  {isTaken && <span style={{ fontSize: 9, opacity: 0.85 }}>{takenBy}</span>}
-                </button>
-              );
-            })}
-          </div>
-        ))}
-        <div style={{ display: "flex", gap: 10, marginBottom: 16, fontSize: 12, color: C.muted }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <span style={{ width: 14, height: 14, borderRadius: 4, background: "#fff", border: "2px solid #1A237E", display: "inline-block" }} /> Available
-          </span>
-          <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <span style={{ width: 14, height: 14, borderRadius: 4, background: "#EEEEEE", display: "inline-block" }} /> Taken
-          </span>
-        </div>
-        <button style={css.btn("#1A237E", "#fff", { width: "100%", padding: 12, fontWeight: 900 })} onClick={onClose}>
-          Close
-        </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StudentPointRow({ stu, cls, onAdd, css, C }) {
-  const [open, setOpen] = useState(false);
-  const [customPts, setCustomPts] = useState(1);
-  const [customReason, setCustomReason] = useState("");
-
-  return (
-    <div style={{ ...css.card({ marginBottom: 8, padding: "12px 16px" }) }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <span style={{ flex: 1, fontWeight: 700, minWidth: 80, color: C.dark }}>🧒 {stu.name}</span>
-        <span style={{ color: "#FF5722", fontWeight: 800, fontSize: 15 }}>⭐ {stu.points}</span>
-        <button
-          style={css.btn(open ? C.muted : "#1A237E", "#fff", { padding: "6px 14px", fontSize: 13 })}
-          onClick={() => setOpen(!open)}
-        >
-          {open ? "Close" : "+ Points"}
-        </button>
-      </div>
-
-      {open && (
-        <div style={{ marginTop: 10, background: "#F5F8FF", borderRadius: 16, padding: 14 }}>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-            {[
-              { label: "Participation", pts: 2 },
-              { label: "100 on Test", pts: 5 },
-              { label: "Homework", pts: 2 },
-              { label: "Great Answer", pts: 3 },
-              { label: "-1 Deduction", pts: -1 },
-            ].map((p) => (
-              <button
-                key={p.label}
-                style={css.btn(p.pts > 0 ? "#2E7D32" : "#C62828", "#fff", { padding: "6px 12px", fontSize: 12 })}
-                onClick={async () => {
-                  await onAdd(p.pts, p.label);
-                  setOpen(false);
-                }}
-              >
-                {p.pts > 0 ? "+" : ""}
-                {p.pts} {p.label}
-              </button>
-            ))}
-          </div>
-
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <input
-              type="number"
-              style={{ ...css.input, width: 70 }}
-              value={customPts}
-              onChange={(e) => setCustomPts(parseInt(e.target.value) || 0)}
-            />
-            <input
-              style={{ ...css.input, flex: 1, minWidth: 100 }}
-              placeholder="Custom reason..."
-              value={customReason}
-              onChange={(e) => setCustomReason(e.target.value)}
-            />
-            <button
-              style={css.btn(C.primary, "#fff", { padding: "8px 16px", fontSize: 13 })}
-              onClick={async () => {
-                if (customReason.trim()) {
-                  await onAdd(customPts, customReason);
-                  setCustomReason("");
-                  setOpen(false);
-                }
-              }}
-            >
-              Give
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 function ClassSettingsRow({ cls, onRename, onRemove, css, C }) {
   const [name, setName] = useState(cls.name);
   useEffect(() => setName(cls.name), [cls.name]);
@@ -3057,72 +2849,6 @@ function StudentSettingsRow({ stu, idx, onRename, onPinChange, onRemove, css, C 
       >
         🗑
       </button>
-    </div>
-  );
-}
-
-
-function ShopItemRow({ item, onUpdate, onRemove, css, C }) {
-  const [name, setName] = useState(item.name);
-  const [desc, setDesc] = useState(item.desc);
-  const [price, setPrice] = useState(item.price);
-
-  useEffect(() => {
-    setName(item.name);
-    setDesc(item.desc);
-    setPrice(item.price);
-  }, [item.name, item.desc, item.price]);
-
-  return (
-    <div style={css.card()}>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-        <input
-          style={{ ...css.input, flex: 2, minWidth: 120 }}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onBlur={() => name !== item.name && onUpdate(item.id, "name", name)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              onUpdate(item.id, "name", name);
-              e.target.blur();
-            }
-          }}
-        />
-        <input
-          style={{ ...css.input, flex: 3, minWidth: 120 }}
-          value={desc}
-          onChange={(e) => setDesc(e.target.value)}
-          onBlur={() => desc !== item.desc && onUpdate(item.id, "desc", desc)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              onUpdate(item.id, "desc", desc);
-              e.target.blur();
-            }
-          }}
-        />
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontWeight: 700 }}>⭐</span>
-          <input
-            style={{ ...css.input, width: 70 }}
-            type="number"
-            value={price}
-            onChange={(e) => setPrice(parseInt(e.target.value) || 0)}
-            onBlur={() => price !== item.price && onUpdate(item.id, "price", price)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                onUpdate(item.id, "price", price);
-                e.target.blur();
-              }
-            }}
-          />
-        </div>
-        <button
-          style={css.btn(C.danger, "#fff", { padding: "8px 14px" })}
-          onClick={onRemove}
-        >
-          🗑
-        </button>
-      </div>
     </div>
   );
 }
