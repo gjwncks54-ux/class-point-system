@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "class-point-system-f3bec",
     "public": "dist",
     "ignore": [
       "firebase.json",
@@ -12,6 +13,9 @@
         "destination": "/index.html"
       }
     ]
+  },
+  "functions": {
+    "source": "functions"
   },
   "firestore": {
     "rules": "firestore.rules"

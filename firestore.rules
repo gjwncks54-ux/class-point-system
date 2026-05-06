@@ -4,7 +4,7 @@ service cloud.firestore {
 
     function isAdmin() {
       return request.auth != null
-        && request.auth.uid == "PASTE_TEACHER_UID_HERE";
+        && request.auth.uid == "JVgbee2GguPVKad6oGsorTeH7fY2";
     }
 
     function validPurchaseRequest() {
@@ -35,6 +35,33 @@ service cloud.firestore {
     match /requests/{requestId} {
       allow create: if validPurchaseRequest() || validPinRequest();
       allow read, update, delete: if isAdmin();
+    }
+
+    match /gameSessions/{sessionId} {
+      allow read, write: if false;
+    }
+
+    match /gameLogs/{logId} {
+      allow read, write: if false;
+    }
+
+    match /gachaLogs/{logId} {
+      allow read, write: if false;
+    }
+
+    match /ticker/{eventId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /villageStatus/{classId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /dennisVillageWeeks/{weekId}/classes/{classId}/students/{studentId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
   }
 }
