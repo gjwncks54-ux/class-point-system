@@ -1,38 +1,33 @@
 
-import { useState, useEffect, useRef } from "react";
-import ClassVillageMVP from "./ClassVillageMVP";
-import { initializeApp } from "firebase/app";
+import { useState, useEffect, useRef, lazy, Suspense } from "react";
+import EnglishAcademyDungeon from "./EnglishAcademyDungeon";
 import {
-  getAuth,
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut,
 } from "firebase/auth";
 import {
-  getFirestore,
   doc,
   collection,
   onSnapshot,
   setDoc,
   getDoc,
+  getDocs,
   addDoc,
   deleteDoc,
   runTransaction,
 } from "firebase/firestore";
+import { DEFAULT_STUDENT_PATH, getPathForStudentDestination, getStudentTabForPath, isDungeonPath, normalizeStudentPath } from "../shared/studentRoutes.js";
+import { getPreviousDennisVillageWeekId } from "../shared/dennisVillageWeek.js";
+import { auth, db } from "./lib/firebaseClient";
+import { getGameApiErrorMessage, isFunctionsUnavailableError, verifyStudentPin } from "./lib/gameApi";
+import { clearStudentSession, readStudentSession, writeStudentSession } from "./lib/studentSession";
+import {
+  buildDennisVillageAwardDismissKey,
+  buildDennisVillageAwardNotice,
+} from "./lib/dennisVillageAwardNotice";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyApfeEJe4uxdxhhMSzMDijwFh80Gqx7v8E",
-  authDomain: "class-point-system-f3bec.firebaseapp.com",
-  projectId: "class-point-system-f3bec",
-  storageBucket: "class-point-system-f3bec.firebasestorage.app",
-  messagingSenderId: "672516344748",
-  appId: "1:672516344748:web:bfe549870bff3190b4c809",
-  measurementId: "G-FZ1Y17XWL5",
-};
-
-const firebaseApp = initializeApp(firebaseConfig);
-const auth = getAuth(firebaseApp);
-const db = getFirestore(firebaseApp);
+const DennisVillage = lazy(() => import("./DennisVillage"));
 
 const DATA_DOC = doc(db, "app", "data");
 const BACKUP_DOC = doc(db, "app", "backup");
@@ -51,8 +46,10 @@ const makeClassFromNames = (id, name, color, emoji, names) => ({
     name: n,
     pin: `${1001 + i}`,
     points: 0,
+    lifetimePoints: 0,
     history: [],
     purchases: [],
+    profile: { avatarId: null },
   })),
 });
 
@@ -66,8 +63,10 @@ const makeClass = (id, name, color, emoji) => ({
     name: `Student ${i + 1}`,
     pin: `${1001 + i}`,
     points: 0,
+    lifetimePoints: 0,
     history: [],
     purchases: [],
+    profile: { avatarId: null },
   })),
 });
 
@@ -224,6 +223,7 @@ const normalizeData = (raw) => ({
       history: [],
       purchases: [],
       ...s,
+      profile: { avatarId: null, ...(s.profile || {}) },
     })),
   })),
 });
@@ -398,11 +398,16 @@ export default function App() {
     () => sessionStorage.getItem("selectedStudentId") || null
   );
   const [adminTab, setAdminTab] = useState("points");
-  const [studentTab, setStudentTab] = useState("shop");
+  const [studentTab, setStudentTabRaw] = useState(() =>
+    getStudentTabForPath(window.location.pathname) || getStudentTabForPath(DEFAULT_STUDENT_PATH) || "village"
+  );
+  const [studentSession, setStudentSessionRaw] = useState(() => readStudentSession());
+  const [pathname, setPathname] = useState(() => window.location.pathname || "/");
   const [adminEmail, setAdminEmail] = useState(() => sessionStorage.getItem("adminEmail") || "");
   const [adminPassword, setAdminPassword] = useState("");
   const [adminLoginError, setAdminLoginError] = useState("");
   const [toast, setToast] = useState(null);
+  const [dennisVillageAwardNotice, setDennisVillageAwardNotice] = useState(null);
   const [filterClass, setFilterClass] = useState("all");
   const [pinClassId, setPinClassIdRaw] = useState(
     () => sessionStorage.getItem("pinClassId") || null
@@ -413,6 +418,35 @@ export default function App() {
   const [privacyPopup, setPrivacyPopup] = useState(null);
   const dataRef = useRef(null);
   const toastTimerRef = useRef(null);
+  const classIdsKey = (data?.classes || []).map((cls) => cls.id).join("|");
+
+  const navigatePath = (nextPath, { replace = false } = {}) => {
+    const normalizedPath = nextPath || "/";
+    const currentPath = window.location.pathname || "/";
+
+    if (normalizedPath === currentPath) {
+      setPathname(normalizedPath);
+      return;
+    }
+
+    const historyMethod = replace ? "replaceState" : "pushState";
+    window.history[historyMethod]({}, "", normalizedPath);
+    setPathname(normalizedPath);
+  };
+
+  const setStudentSession = (session) => {
+    setStudentSessionRaw(writeStudentSession(session));
+  };
+
+  const setStudentTab = (tab) => {
+    setStudentTabRaw(tab);
+  };
+
+  const openStudentDestination = (destination, options) => {
+    const nextPath = normalizeStudentPath(getPathForStudentDestination(destination));
+    setStudentTabRaw(getStudentTabForPath(nextPath));
+    navigatePath(nextPath, options);
+  };
 
   const setView = (v) => {
     sessionStorage.setItem("view", v);
@@ -435,6 +469,16 @@ export default function App() {
       ? sessionStorage.setItem("pinClassId", v)
       : sessionStorage.removeItem("pinClassId");
     setPinClassIdRaw(v);
+  };
+
+  const logoutStudent = () => {
+    clearStudentSession();
+    setStudentSessionRaw(null);
+    setSelectedStudentId(null);
+    setSelectedClassId(null);
+    setPinInput("");
+    setPinError(false);
+    setView("classSelect");
   };
 
   useEffect(() => {
@@ -483,10 +527,96 @@ export default function App() {
   }, [adminAuthUid]);
 
   useEffect(() => {
+    if (!adminAuthUid || !(data?.classes || []).length) {
+      setDennisVillageAwardNotice(null);
+      return undefined;
+    }
+
+    let cancelled = false;
+    const weekId = getPreviousDennisVillageWeekId(new Date());
+    const dismissKey = buildDennisVillageAwardDismissKey(weekId);
+
+    try {
+      if (localStorage.getItem(dismissKey) === "1") {
+        setDennisVillageAwardNotice(null);
+        return undefined;
+      }
+    } catch (error) {
+      console.error("Failed to read Dennis Village notice preference:", error);
+    }
+
+    async function loadDennisVillageAwardNotice() {
+      try {
+        const classEntries = await Promise.all(
+          (data.classes || []).map(async (cls) => {
+            const snap = await getDocs(
+              collection(db, "dennisVillageWeeks", weekId, "classes", cls.id, "students")
+            );
+
+            return snap.docs.map((docSnap) => ({
+              classId: cls.id,
+              className: cls.name,
+              studentId: docSnap.id,
+              ...docSnap.data(),
+            }));
+          })
+        );
+        const awardNotice = buildDennisVillageAwardNotice({
+          weekId,
+          entries: classEntries.flat(),
+        });
+
+        if (!cancelled) {
+          setDennisVillageAwardNotice(awardNotice);
+        }
+      } catch (error) {
+        console.error("Failed to load Dennis Village award notice:", error);
+        if (!cancelled) setDennisVillageAwardNotice(null);
+      }
+    }
+
+    loadDennisVillageAwardNotice();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [adminAuthUid, classIdsKey, data]);
+
+  useEffect(() => {
     return () => {
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setPathname(window.location.pathname || "/");
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  useEffect(() => {
+    if (view === "studentDash") {
+      const nextPath = normalizeStudentPath(pathname);
+
+      if (nextPath !== pathname) {
+        navigatePath(nextPath, { replace: true });
+        return;
+      }
+
+      const nextTab = getStudentTabForPath(nextPath);
+      if (nextTab !== studentTab) {
+        setStudentTabRaw(nextTab);
+      }
+      return;
+    }
+
+    if (pathname !== "/") {
+      navigatePath("/", { replace: true });
+    }
+  }, [pathname, studentTab, view]);
 
   const showToast = (msg, type = "ok") => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -803,8 +933,10 @@ export default function App() {
                   name: "New Student",
                   pin: newPin,
                   points: 0,
+                  lifetimePoints: 0,
                   history: [],
                   purchases: [],
+                  profile: { avatarId: null },
                 },
               ],
             }
@@ -1384,15 +1516,58 @@ export default function App() {
       setView("classSelect");
       return null;
     }
-    const tryPin = (pin) => {
-      const found = cls.students.find((s) => s.pin === pin);
-      if (found) {
+    const tryPin = async (pin) => {
+      try {
+        const verified = await verifyStudentPin({ classId: cls.id, pin });
+        const found = cls.students.find((student) => student.id === verified.studentId);
+
+        if (!found) {
+          throw new Error("Verified student was not found in the current app data.");
+        }
+
         setSelectedClassId(cls.id);
         setSelectedStudentId(found.id);
-        setStudentTab("shop");
+        setStudentSession({
+          sessionId: verified.sessionId,
+          classId: cls.id,
+          studentId: found.id,
+          studentName: found.name,
+          expiresAtMs: verified.expiresAtMs || null,
+          mode: "secure",
+        });
+        setStudentTab("village");
         setPinInput("");
         setPinError(false);
         setView("studentDash");
+        showToast("Secure student session ready.");
+        return;
+      } catch (error) {
+        if (!isFunctionsUnavailableError(error)) {
+          console.error("PIN verification failed:", error);
+          setPinError(true);
+          setPinInput("");
+          showToast(getGameApiErrorMessage(error, "PIN verification failed."), "err");
+          return;
+        }
+      }
+
+      const found = cls.students.find((student) => student.pin === pin);
+      if (found) {
+        setSelectedClassId(cls.id);
+        setSelectedStudentId(found.id);
+        setStudentSession({
+          sessionId: null,
+          classId: cls.id,
+          studentId: found.id,
+          studentName: found.name,
+          expiresAtMs: null,
+          mode: "preview",
+        });
+        setStudentTab("village");
+        setPinInput("");
+        setPinError(false);
+        setView("studentDash");
+        showToast("Functions are not deployed yet. Logged in with preview fallback.", "err");
       } else {
         setPinError(true);
         setPinInput("");
@@ -1507,20 +1682,35 @@ export default function App() {
     const classRanked = [...cls.students].sort((a, b) => b.points - a.points);
     const myClassRank = classRanked.findIndex((s) => s.id === me.id) + 1;
     const myGlobalRank = globalRanked.findIndex((s) => s.id === me.id) + 1;
+    const studentRoute = normalizeStudentPath(pathname);
+    const villageLayout = studentRoute === "/village" || isDungeonPath(studentRoute);
+    const wideStudentLayout = villageLayout || studentRoute === DEFAULT_STUDENT_PATH;
 
     return (
       <div style={css.app}>
         {/* Hero header — #1A237E */}
         <div style={{
           background: "#1A237E",
-          padding: "36px 24px 60px",
+          padding: "36px 24px 72px",
           textAlign: "center",
           position: "relative",
           overflow: "hidden",
         }}>
           <div style={{ position: "absolute", top: -40, right: -40, width: 140, height: 140, borderRadius: "50%", background: "rgba(255,255,255,0.05)" }} />
           <div style={{ position: "absolute", bottom: -20, left: -20, width: 100, height: 100, borderRadius: "50%", background: "rgba(255,255,255,0.05)" }} />
-          <div style={{ position: "absolute", top: 14, left: 16 }}><BackBtn to="classSelect" /></div>
+          <div style={{ position: "absolute", top: 14, left: 16 }}>
+            <button
+              style={css.btn("#ffffff", "#1A237E", {
+                padding: "7px 16px",
+                fontSize: 13,
+                fontWeight: 800,
+                border: "2px solid #1A237E",
+              })}
+              onClick={logoutStudent}
+            >
+              ← Back
+            </button>
+          </div>
           <div style={{ fontFamily: FF.display, fontSize: 27, color: "#fff", marginTop: 8, letterSpacing: 0.3 }}>
             Hi, {me.name}! 👋
           </div>
@@ -1542,13 +1732,13 @@ export default function App() {
         {toast && <div style={css.toast(toast.type)}>{toast.msg}</div>}
         <div
           style={
-            studentTab === "village"
+            wideStudentLayout
               ? {
                   maxWidth: 1280,
-                  margin: "-24px auto 0",
-                  padding: "16px 16px 16px",
+                  margin: "-8px auto 0",
+                  padding: "18px 16px 16px",
                 }
-              : { ...css.wrap, marginTop: -24 }
+              : { ...css.wrap, marginTop: -8 }
           }
         >
 
@@ -1556,13 +1746,13 @@ export default function App() {
             style={{
               display: "flex",
               gap: 8,
-              marginBottom: 14,
-              flexWrap: studentTab === "village" ? "nowrap" : "wrap",
+              marginBottom: 18,
+              flexWrap: wideStudentLayout ? "nowrap" : "wrap",
             }}
           >
             {[
               ["shop", "🛒 Shop"],
-              ["village", "Town"],
+              ["village", "Village"],
               ["ranking", "🏆 Ranking"],
               ["purchases", "🛍 Purchases"],
               ["history", "📋 History"],
@@ -1571,9 +1761,18 @@ export default function App() {
               <button
                 key={t}
                 style={{
-                  background: studentTab === t ? "#1A237E" : "#FFFFFF",
-                  color: studentTab === t ? "#fff" : "#888888",
-                  border: studentTab === t ? "none" : "2px solid #E0E0E0",
+                  background:
+                    (t === "ranking" ? studentRoute === "/hall" : getStudentTabForPath(studentRoute) === t)
+                      ? "#1A237E"
+                      : "#FFFFFF",
+                  color:
+                    (t === "ranking" ? studentRoute === "/hall" : getStudentTabForPath(studentRoute) === t)
+                      ? "#fff"
+                      : "#888888",
+                  border:
+                    (t === "ranking" ? studentRoute === "/hall" : getStudentTabForPath(studentRoute) === t)
+                      ? "none"
+                      : "2px solid #E0E0E0",
                   borderRadius: 50,
                   padding: "9px 17px",
                   fontWeight: 800,
@@ -1582,14 +1781,26 @@ export default function App() {
                   fontFamily: FF.body,
                   transition: "all 0.15s",
                 }}
-                onClick={() => setStudentTab(t)}
+                onClick={() => openStudentDestination(t === "ranking" ? "hall" : t)}
               >
                 {label}
               </button>
             ))}
           </div>
 
-          {studentTab === "shop" && (
+          {studentRoute === "/dungeon/english" && (
+            <EnglishAcademyDungeon
+              cls={cls}
+              me={me}
+              session={studentSession}
+              onNavigate={openStudentDestination}
+              showToast={showToast}
+              css={css}
+              C={C}
+            />
+          )}
+
+          {studentRoute === "/shop" && (
             <div>
               {data.shop.map((item) => (
                 <div
@@ -1765,19 +1976,18 @@ export default function App() {
             </div>
           )}
 
-          {studentTab === "village" && (
-            <ClassVillageMVP
-              cls={cls}
-              me={me}
-              classRanked={classRanked}
-              onOpenTab={setStudentTab}
-              showToast={showToast}
-              css={css}
-              C={C}
-            />
+          {studentRoute === "/village" && (
+            <Suspense fallback={<div style={css.card({ padding: 20, fontWeight: 900 })}>Loading Dennis Village...</div>}>
+              <DennisVillage
+                cls={cls}
+                me={me}
+                session={studentSession}
+                showToast={showToast}
+              />
+            </Suspense>
           )}
 
-          {studentTab === "ranking" && (() => {
+          {studentRoute === "/hall" && (() => {
             const podiumBg = (i) => i === 0 ? "#FFD700" : i === 1 ? "#B0BEC5" : "#FFAB76";
             const podiumText = (i) => i === 0 ? "#7A5800" : i === 1 ? "#37474F" : "#7A3200";
             const renderRankRow = (s, i, showClass = false) => {
@@ -1833,7 +2043,7 @@ export default function App() {
             );
           })()}
 
-          {studentTab === "purchases" && (
+          {studentRoute === "/purchases" && (
             <div>
               <p style={{ fontWeight: 800, color: C.muted, fontSize: 13, marginBottom: 10, letterSpacing: 0.5 }}>
                 MY PURCHASES — {cls.name}
@@ -1911,7 +2121,7 @@ export default function App() {
             </div>
           )}
 
-          {studentTab === "history" &&
+          {studentRoute === "/history" &&
             ((me.history || []).length === 0 ? (
               <div style={{ ...css.card({ textAlign: "center", padding: "36px 20px" }) }}>
                 <div style={{ fontSize: 40, marginBottom: 10 }}>📋</div>
@@ -1952,7 +2162,7 @@ export default function App() {
               ))
             ))}
 
-          {studentTab === "pin" && (
+          {studentRoute === "/pin" && (
             <div>
               <div style={{ ...css.card({ textAlign: "center", padding: "36px 24px" }) }}>
                 <div style={{ fontSize: 13, fontWeight: 800, color: C.muted, letterSpacing: 1, marginBottom: 12 }}>YOUR PIN</div>
@@ -2022,6 +2232,44 @@ export default function App() {
               </button>
             ))}
           </div>
+
+          {dennisVillageAwardNotice && (
+            <div
+              style={css.card({
+                marginBottom: 14,
+                padding: "14px 16px",
+                background: "#FFF8E1",
+                borderLeft: "5px solid #F9A825",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+                flexWrap: "wrap",
+              })}
+            >
+              <div style={{ flex: 1, minWidth: 220 }}>
+                <div style={{ fontWeight: 900, color: C.dark, fontSize: 15 }}>
+                  Dennis Village 지난주 보상 확인 필요
+                </div>
+                <div style={{ color: C.muted, fontSize: 13, marginTop: 4 }}>
+                  지난주 참여 기록 {dennisVillageAwardNotice.count}건이 있어요. 리더보드를 보고 별 보상을 수동으로 주세요.
+                </div>
+              </div>
+              <button
+                style={css.btn("#F9A825", C.dark, { padding: "8px 14px", fontSize: 13 })}
+                onClick={() => {
+                  try {
+                    localStorage.setItem(dennisVillageAwardNotice.dismissKey, "1");
+                  } catch (error) {
+                    console.error("Failed to dismiss Dennis Village notice:", error);
+                  }
+                  setDennisVillageAwardNotice(null);
+                }}
+              >
+                확인
+              </button>
+            </div>
+          )}
 
           {adminTab === "points" && (
             <div>
@@ -2813,184 +3061,6 @@ function StudentSettingsRow({ stu, idx, onRename, onPinChange, onRemove, css, C 
   );
 }
 
-function PinChangeTab({ me, cls, onSave, css, C, requestMode = false }) {
-  const [step, setStep] = useState("current");
-  const [currentInput, setCurrentInput] = useState("");
-  const [newInput, setNewInput] = useState("");
-  const [confirmInput, setConfirmInput] = useState("");
-  const [error, setError] = useState("");
-
-  const reset = () => {
-    setStep("current");
-    setCurrentInput("");
-    setNewInput("");
-    setConfirmInput("");
-    setError("");
-  };
-
-  const handleKey = (val, setter, next) => {
-    if (val === "⌫") {
-      setter((p) => p.slice(0, -1));
-      setError("");
-      return;
-    }
-    setter((p) => {
-      const nextVal = p + val;
-      if (nextVal.length === 4) setTimeout(() => next(nextVal), 150);
-      return nextVal.length <= 4 ? nextVal : p;
-    });
-  };
-
-  const checkCurrent = (val) => {
-    if (val !== me.pin) {
-      setError("Wrong PIN! Try again 🙈");
-      setCurrentInput("");
-      return;
-    }
-    setStep("new");
-    setCurrentInput(val);
-    setError("");
-  };
-
-  const setNew = (val) => {
-    setStep("confirm");
-    setNewInput(val);
-    setError("");
-  };
-
-  const checkConfirm = async (val) => {
-    if (val !== newInput) {
-      setError("PINs don't match! Try again 🙈");
-      setConfirmInput("");
-      setStep("new");
-      setNewInput("");
-      return;
-    }
-    await onSave(val);
-    reset();
-  };
-
-  const steps = {
-    current: {
-      title: "Enter current PIN",
-      subtitle: requestMode ? "Verify first" : "Verify it's you",
-      input: currentInput,
-      setter: setCurrentInput,
-      next: checkCurrent,
-    },
-    new: {
-      title: "Enter new PIN",
-      subtitle: requestMode ? "Teacher approval will be needed" : "Choose a new 4-digit PIN",
-      input: newInput,
-      setter: setNewInput,
-      next: setNew,
-    },
-    confirm: {
-      title: "Confirm new PIN",
-      subtitle: requestMode ? "Send PIN change request" : "Enter the new PIN again",
-      input: confirmInput,
-      setter: setConfirmInput,
-      next: checkConfirm,
-    },
-  };
-
-  const s = steps[step];
-
-  return (
-    <div
-      style={{
-        ...css.card({
-          maxWidth: 320,
-          margin: "0 auto",
-          textAlign: "center",
-          padding: 24,
-        }),
-      }}
-    >
-      <div style={{ fontSize: 44, marginBottom: 8 }}>🔑</div>
-      <h3 style={{ fontWeight: 800, fontSize: 18, margin: "0 0 4px" }}>{s.title}</h3>
-      <p style={{ color: C.muted, fontSize: 13, marginBottom: 20 }}>{s.subtitle}</p>
-      <div style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 20 }}>
-        {[0, 1, 2, 3].map((i) => (
-          <div
-            key={i}
-            style={{
-              width: 46,
-              height: 52,
-              borderRadius: 12,
-              border: `2.5px solid ${s.input.length > i ? cls.color : "#DDD"}`,
-              background: s.input.length > i ? cls.color + "18" : "#FAFAFA",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 24,
-              color: cls.color,
-              fontWeight: 900,
-            }}
-          >
-            {s.input.length > i ? "●" : ""}
-          </div>
-        ))}
-      </div>
-      {error && (
-        <p style={{ color: C.danger, fontWeight: 700, fontSize: 13, marginBottom: 12 }}>
-          {error}
-        </p>
-      )}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: 10,
-          maxWidth: 220,
-          margin: "0 auto 14px",
-        }}
-      >
-        {[1, 2, 3, 4, 5, 6, 7, 8, 9, "", 0, "⌫"].map((k, i) => (
-          <button
-            key={i}
-            disabled={k === ""}
-            style={{
-              ...css.btn(
-                k === "⌫" ? "#FFE5E5" : "#F1F5F9",
-                k === "⌫" ? C.danger : cls.color,
-                {
-                  padding: "15px 0",
-                  fontSize: 20,
-                  borderRadius: 12,
-                  opacity: k === "" ? 0 : 1,
-                  cursor: k === "" ? "default" : "pointer",
-                }
-              ),
-            }}
-            onClick={() => k !== "" && handleKey(String(k), s.setter, s.next)}
-          >
-            {k}
-          </button>
-        ))}
-      </div>
-      <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 4 }}>
-        {["current", "new", "confirm"].map((st) => (
-          <div
-            key={st}
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              background: step === st ? cls.color : "#DDD",
-            }}
-          />
-        ))}
-      </div>
-      <button
-        style={{ ...css.btn("#F1F5F9", C.muted, { padding: "8px 20px", fontSize: 13, marginTop: 14 }) }}
-        onClick={reset}
-      >
-        Cancel
-      </button>
-    </div>
-  );
-}
 
 function ShopItemRow({ item, onUpdate, onRemove, css, C }) {
   const [name, setName] = useState(item.name);
