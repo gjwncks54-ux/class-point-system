@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { collection, doc, getFirestore } from "firebase/firestore";
 import { connectFunctionsEmulator, getFunctions } from "firebase/functions";
 
 const firebaseConfig = {
@@ -27,3 +27,9 @@ if (import.meta.env.VITE_USE_FUNCTIONS_EMULATOR === "true") {
 }
 
 export { auth, db, firebaseApp, functions };
+
+// Firestore document / collection refs
+export const DATA_DOC = doc(db, "app", "data");
+export const BACKUP_DOC = doc(db, "app", "backup");
+export const REQUESTS_COL = collection(db, "requests");
+export const REQUEST_DOC = (id) => doc(db, "requests", id);
